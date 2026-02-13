@@ -1,14 +1,13 @@
 import typer
 import json
 import requests
-import subprocess
 from typing import Annotated
 from pathlib import Path
 from api_key import API_KEY
 
 URL_GEO_API = "http://api.openweathermap.org/geo/1.0/direct"
 URL_CURRENT_WEATHER_API = "https://api.openweathermap.org/data/2.5/weather"
-
+DEFAULT_UNITS = "Celcius"
 app = typer.Typer()
 project_root = Path.cwd()
 json_file_path = project_root / "data.json"
@@ -29,47 +28,46 @@ def fetch_weather_data(city, city_coords):
     data_current_weather_api = response_current_weather_api.json()
     return data_current_weather_api
 
-def extract_data(data):
-    main = data["main"]
-    weather = data["weather"][0]
-    wind = data["wind"]
-    description = weather["description"]
-    temperature = main["temp"]
-    temperature_in_celsius = temperature - 273.15   
-    temperature_in_fahrenheit = (temperature - 273.15) * (9/5) + 32
-    print(temperature_in_celsius)
-    print(temperature_in_fahrenheit)
-    feels_like = main["feels_like"]
-    feels_like_in_celsius = 273 + feels_like
-    pressure = main["pressure"]
-    humidity = main["humidity"]
-    pressure = main["pressure"]
-    
-
-def load_user_defaults():
+def load_user_city():
     try: 
         with open(json_file_path,  "r") as file:
             data = json.load(file)
-            user_city_json = data["city"]
-            return user_city_json 
+            saved_city = data["city"]
+            return saved_city 
     except FileNotFoundError, json.decoder.JSONDecodeError:
         with open(json_file_path,  "w") as file:
-            user_city_json = input("Enter your city: ")
-            data = {"city": user_city_json}
+            saved_city = input("Enter your city: ")
+            data = {"city": saved_city}
             json.dump(data, file)
-            return user_city_json 
+            return saved_city 
 
-@app.command()
-def main(city: Annotated[str, typer.Argument()] = load_user_defaults()):
+def main(city):
     city_coords = fetch_city_coords(city)
     data_current_weather_api = fetch_weather_data(city, city_coords)
-    print(data_current_weather_api)
+    temp = (data_current_weather_api["main"]["temp"])-273.15
+    feels_like = (data_current_weather_api["main"]["feels_like"])-273.15
+    print(f"{city.upper()}: {round(temp)}°C (feels like {round(feels_like)}°C)")
+
+def change_default_city(default_city):
+    with open(json_file_path,  "r") as file:
+        data = json.load(file)
+        data["city"] = default_city
+    with open(json_file_path, "w") as file:
+        print(data)
+        json.dump(data, file)
+
+
 
 @app.command()
-def default(city):
-    with open(json_file_path,  "w") as file:
-        data = {"city": city}
-        json.dump(data, file)
+def weather(city: Annotated[str, typer.Argument()] = load_user_city(), change_city: Annotated[str, typer.Option()] = None):
+
+    if change_city != None:
+        change_default_city(change_city)
+        return
+
+    main(city)
+    
+
 
 
 if __name__ == "__main__":
