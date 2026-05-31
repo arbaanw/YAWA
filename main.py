@@ -4,9 +4,15 @@ import requests
 from typing import Annotated
 from pathlib import Path
 from api_key import API_KEY
+from twilio.rest import Client
 
 URL_GEO_API = "http://api.openweathermap.org/geo/1.0/direct"
 URL_CURRENT_WEATHER_API = "https://api.openweathermap.org/data/2.5/weather"
+USER_WHEATHER_FORECAST = "https://api.openweathermap.org/data/2.5/forecast"
+
+TWILIO_ACCOUNT_SID = "USER_TWILIO_ACCOUNT_SID"
+AUTH_TOK = "USER_TWILIO_ACCOUNT_TOK"
+
 DEFAULT_UNITS = "Celcius"
 app = typer.Typer()
 project_root = Path.cwd()
@@ -14,7 +20,10 @@ json_file_path = project_root / "data.json"
 
 
 def fetch_city_coords(user_city: str):
-    payload_geo_api = {"q": user_city, "appid": API_KEY}
+    payload_geo_api = {
+        "q": user_city,
+        "appid": API_KEY
+        }
     response_geo_api = requests.get(URL_GEO_API, params=payload_geo_api)
     data_geo_api = response_geo_api.json()
     user_city_lat = data_geo_api[0]["lat"]
@@ -29,20 +38,52 @@ def fetch_weather_data(city, city_coords):
     return data_current_weather_api
 
 def load_user_city():
-    try: 
+    try:
         with open(json_file_path,  "r") as file:
             data = json.load(file)
             saved_city = data["city"]
-            return saved_city 
-    except FileNotFoundError, json.decoder.JSONDecodeError:
+            return saved_city
+    except (FileNotFoundError, json.decoder.JSONDecodeError):
         with open(json_file_path,  "w") as file:
             saved_city = input("Enter your city: ")
             data = {"city": saved_city}
             json.dump(data, file)
-            return saved_city 
+            return saved_city
+
+def rain_alert(city_coords):
+    rain_code=False
+
+    openweather_endpoint=USER_WHEATHER_FORECAST
+
+    weather_params={
+        "lat":city_coords[0],
+        "lon":city_coords[1],
+        "appid":"openweather_api_key_for_5-day/3-hour_forecast",
+        "cnt":3
+    }
+
+    response=requests.get(url=openweather_endpoint, params=weather_params)
+    response.raise_for_status()
+    data=response.json()
+
+    for current_hour in data["list"]:
+        current_condition=current_hour["weather"][0]["id"]
+        if current_condition < 600:
+            rain_code=True
+
+    if rain_code:
+        client=Client(TWILIO_ACCOUNT_SID, AUTH_TOK)
+        message=client.messages.create(
+            from_="TWILIO_ACCOUNT_NUMBER",
+            body="It's going to rain today, Take an Umbrella",
+            to="YOUR_PERSONAL_NUMBER"
+        )
+
+        print(message.status)
 
 def main(city):
     city_coords = fetch_city_coords(city)
+    city_rain_alert=rain_alert(city_coords)
     data_current_weather_api = fetch_weather_data(city, city_coords)
     temp = (data_current_weather_api["main"]["temp"])-273.15
     feels_like = (data_current_weather_api["main"]["feels_like"])-273.15
@@ -66,7 +107,7 @@ def weather(city: Annotated[str, typer.Argument()] = load_user_city(), change_ci
         return
 
     main(city)
-    
+
 
 
 
