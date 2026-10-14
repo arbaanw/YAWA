@@ -64,8 +64,6 @@ API_KEY = "your_openweathermap_api_key"
 
 Replace the placeholder with your OpenWeatherMap API key.
 
-**Security:** Do not commit `api_key.py` or any real API credentials to GitHub. Add secret files to `.gitignore`.
-
 ## Usage
 
 Run the application:
